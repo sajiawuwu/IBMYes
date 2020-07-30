@@ -1,4 +1,4 @@
-name: IBM Cloud Auto Restart
+name: IBM_CF Reinstall V2ray
 
 on:
   push:
@@ -38,7 +38,54 @@ jobs:
     - name: Restart IBM Cloud
       env:
         IBM_APP_NAME: ${{ secrets.IBM_APP_NAME }}
+        UUID: ${{ secrets.UUID }}
+        WS_PATH: ${{ secrets.WS_PATH }}
       run: |
-        ./IBM_Cloud_CLI/ibmcloud cf restart "$IBM_APP_NAME"
-        
-      
+        echo "开始下载v2ray-cloudfoundry文件"
+        git submodule update --init --recursive
+        cd ./v2ray-cloudfoundry/v2ray
+        pwd
+        chmod 0755 ./*
+        cd ..
+        pwd
+        cat >  ./manifest.yml  << EOF
+        applications:
+        - path: .
+        name: ${IBM_APP_NAME}
+        random-route: true
+        memory: 256M
+        EOF
+        cat >  ./v2ray/config.json  << EOF
+        {
+            "inbounds": [
+                {
+                    "port": 8080,
+                    "protocol": "vmess",
+                    "settings": {
+                        "clients": [
+                            {
+                                "id": "${UUID}",
+                                "alterId": 4
+                            }
+                        ]
+                    },
+                    "streamSettings": {
+                        "network":"ws",
+                        "wsSettings": {
+                            "path": "${WS_PATH}"
+                        }
+                    }
+                }
+            ],
+            "outbounds": [
+                {
+                    "protocol": "freedom",
+                    "settings": {}
+                }
+            ]
+        }
+        EOF
+        pwd
+        echo "开始推送配置文件,远程部署!!"
+        ../IBM_Cloud_CLI/ibmcloud cf push
+        echo "配置完成。"
